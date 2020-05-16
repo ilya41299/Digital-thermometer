@@ -50,10 +50,6 @@
 char str1[20]; // массив для вывода строк
 uint8_t Dev_ID[3][8] = { 0 }; // массив серийных номеров
 uint8_t Dev_Cnt = 0; // число датчиков на шине
-// переменные для разбиения числа при индикации
-uint8_t units = 0;   
-uint8_t tens = 0;
-uint8_t hundreds = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -78,11 +74,13 @@ int main(void)
 	uint8_t status; // присутствие датчиков на шине
   uint8_t dt[8]; // массив серийный номер датчика
   uint16_t raw_temper; // получаемая температура в бинарном виде
-  uint8_t temper; // преобразованная температура
+  float temper; // преобразованная температура
   char ch; // знак температуры +/-
-  uint8_t temper_arr[3]; // массив считанных температур
+  float temper_arr[3]; // массив считанных температур
   char c_arr[3]= {0}; // массив знаков температур
   uint8_t i; // счетчик
+	int ceil; // целая часть температуры
+	int fraction; // дробная часть температуры
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -122,11 +120,6 @@ int main(void)
 			LCD_STRING(str1);
 			while(1);
 		}
-	while(status == 1)
-	{
-		status = ds18b20_init(NO_SKIP_ROM);
-		HAL_Delay(100);
-	};
 	sprintf(str1, "Success");
 	LCD_STRING(str1);
 	HAL_Delay(1);
@@ -149,7 +142,6 @@ int main(void)
             ds18b20_MeasureTemperCmd(NO_SKIP_ROM, i);
         }
        HAL_Delay(800); // ждём готовности
-				
 				// переходим к считываению температур из памяти
         for (i = 0; i < Dev_Cnt; i++)
         {
@@ -160,16 +152,8 @@ int main(void)
 							ch = '-';
 						} 
             else
-						{
 							ch = '+';
-						}
-                
-            temper = ds18b20_Convert(raw_temper); // избавляемся от знака
-            if (ds18b20_GetSign(raw_temper)) // в случае отрицательного числа переводим его в прямой код
-            {
-                temper = (uint8_t)128 - temper;
-							
-            }
+            temper = ds18b20_Convert(raw_temper); // избавляемся от знака          
 						// сохраняем значения в массив
             temper_arr[i] = temper;
             c_arr[i] = ch;
@@ -177,22 +161,17 @@ int main(void)
         LCD(COM, 0x01); // очищаем дисплей
         for (i = 0; i < Dev_Cnt; i++) // выводим на дисплей температуры 
         {
-            units = temper_arr[i] % 10;
-             tens = (temper_arr[i] / 10) % 10;
-            hundreds = temper_arr[i] / 100;
-            if (hundreds == 0 && tens == 0)
-                sprintf(str1, "T%d=%c%d%cC", i+1, c_arr[i], units, 0xDF);
-            else if (hundreds == 0)
-                sprintf(str1, "T%d=%c%d%d%cC", i+1, c_arr[i], tens, units, 0xDF);
-            else
-                sprintf(str1, "T%d=%c%d%d%d%cC", i+1, c_arr[i], hundreds, tens, units, 0xDF);
+					ceil = (int)temper_arr[i];
+					fraction = (int)(temper_arr[i]*10000);
+					fraction = fraction % 10000;
+                sprintf(str1, "T%d=%c%d.%04d%cC", i+1, c_arr[i], ceil, fraction, 0xDF);
             if (i == 0)
                 LCD(COM, 0x80);
             else if (i == 1)
                 LCD(COM, 0xC0);
             else
                 LCD(COM, 0x94);
-            LCD_STRING(str1);
+            LCD_STRING(str1);          
         }
         HAL_Delay(1000);
   }
